@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<launch>
+
+  <group ns="svr_ros">
+    <param name="input_position" value="/convert_tf/ee_in_svr"/>
+    <param name="output_velocity" value="/convert_tf/desired_vel_in_svr"/>
+    <param name="output_gamma" value="/svr/gamma"/>
+    <param name="path_svr_file" value="$(find svr_grad_ros)/config/Arm_test_model7.txt"/>
+   
+    <node name="ds_node" pkg="svr_grad_ros" type="svr_grad_node" output="screen"/>
+  </group>
+</launch>

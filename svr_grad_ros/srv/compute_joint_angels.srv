@@ -1,0 +1,7 @@
+float32[3] finger_tip_position_0
+float32[3] finger_tip_position_1
+float32[3] finger_tip_position_2
+float32[3] finger_tip_position_3
+---
+int8 found_solution
+float32[16] joint_angles
