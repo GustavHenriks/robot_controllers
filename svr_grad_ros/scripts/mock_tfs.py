@@ -3,10 +3,7 @@ import rospy
 import numpy as np
 import math
 import tf
-from geometry_msgs.msg import Pose, PoseStamped, Point32, TransformStamped, TwistStamped
-from std_msgs.msg import Header, Float64MultiArray, Float64, Int8
-from sensor_msgs.msg import PointCloud
-import time
+from std_msgs.msg import Float64MultiArray
 
 
 class mock_tfs():
@@ -19,7 +16,7 @@ class mock_tfs():
         br_s = tf.TransformBroadcaster()
         br_b = tf.TransformBroadcaster()
         rate=rospy.Rate(freq)
-
+        print('Running...')
         while not rospy.is_shutdown():
             br_h.sendTransform(self.hand_pos, self.hand_ori, rospy.Time.now(),
                         '/mocap_hand', "mocap_world")

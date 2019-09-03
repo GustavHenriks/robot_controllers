@@ -10,7 +10,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "svr_grad_node");
 
     ros::NodeHandle nh;
-    double frequency = 1000.0;
+    double frequency = 100.0;
 
 
     // Parameters

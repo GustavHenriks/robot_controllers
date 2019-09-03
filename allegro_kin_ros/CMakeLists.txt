@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(svr_grad_ros)
+project(allegro_kin_ros)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -13,11 +13,15 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
-  svm_grad
-  mathlib
-  message_generation
-  tf
+  moveit_core
+  moveit_ros_planning
+  moveit_ros_planning_interface
 )
+
+find_package(cmake_modules REQUIRED)
+
+
+
 
 
 ## System dependencies are found with CMake's conventions
@@ -61,10 +65,9 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 # Generate services in the 'srv' folder
-add_service_files(
-  FILES
-  compute_joint_angels.srv
-)
+# add_service_files(
+#  FILES
+# )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -74,10 +77,10 @@ add_service_files(
 # )
 
 ## Generate added messages and services with any dependencies listed here
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-)
+#generate_messages(
+#  DEPENDENCIES
+#  std_msgs
+#)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -130,10 +133,10 @@ include
 )
 
 
-add_executable(svr_grad_node 
-	${SRC_DIR}/svr_grad_node.cpp
-	${SRC_DIR}/SVRGRAD.cpp
-	${INCLUDE_DIR}/SVRGRAD.h)
+add_executable(allegro_kin_node 
+	${SRC_DIR}/allegro_kin_node.cpp
+	${SRC_DIR}/ALLEGROKIN.cpp
+	${INCLUDE_DIR}/ALLEGROKIN.h)
 
 
 ## Declare a C++ library
@@ -164,7 +167,7 @@ add_executable(svr_grad_node
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
-add_dependencies(svr_grad_node 
+add_dependencies(allegro_kin_node 
 	${${PROJECT_NAME}_EXPORTED_TARGETS} 
 	${catkin_EXPORTED_TARGETS})
 
@@ -174,7 +177,7 @@ add_dependencies(svr_grad_node
 #   ${catkin_LIBRARIES}
 # )
 
-target_link_libraries(svr_grad_node ${catkin_LIBRARIES} )
+target_link_libraries(allegro_kin_node ${catkin_LIBRARIES} )
 
 #############
 ## Install ##
