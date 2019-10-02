@@ -34,6 +34,7 @@ class convert_tf():
         br_ee_debug_quat_svr = tf.TransformBroadcaster()
         br_ee_debug_quat_com = tf.TransformBroadcaster()
         br_palm_link = tf.TransformBroadcaster()
+        br_thumb_world = tf.TransformBroadcaster()
 
         tfBuffer = tf2_ros.Buffer()
         listener = tf2_ros.TransformListener(tfBuffer)
@@ -308,6 +309,35 @@ class convert_tf():
             br_palm_link.sendTransform(trans_ee_mocap[0]+displacement[:3], palm_rot2,common_time,
             'hand_root', "mocap_world")
             
+            try:
+                trans_world_tip = self.listener.lookupTransform(
+                    '/hand_root', '/link_15_tip', rospy.Time(0))
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                continue
+            self.rot_mat2=np.eye(4)
+            qtmps=tf.transformations.quaternion_from_matrix(self.rot_mat2)
+            qtmps2=tf.transformations.quaternion_multiply(qtmps,tf.transformations.quaternion_inverse(palm_rot2))
+            qtmps3=tf.transformations.quaternion_multiply(qtmps2,palm_rot2)
+            # br_palm_link.sendTransform(trans_ee_mocap[0]+displacement[:3], qtmps3,common_time,
+            # 'hand_root', "mocap_world")
+            # print(tf.transformations.quaternion_matrix(qtmps3))
+            trans_world_tip_tmp=np.dot(tf.transformations.quaternion_matrix(qtmps2),np.array([trans_world_tip[0][0],trans_world_tip[0][1],trans_world_tip[0][2],1]))
+            br_thumb_world.sendTransform(trans_ee_mocap[0]+displacement[:3]+trans_world_tip_tmp[:3], palm_rot2,rospy.Time.now(),
+            'thumb_tip', "mocap_world")     
+            try:
+                common_time_thumb = self.listener.getLatestCommonTime(
+                    '/SVR', '/thumb_tip')                      
+                trans_SVR_tip = self.listener.lookupTransform(
+                    '/SVR', '/thumb_tip', common_time_thumb)
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                continue                   
+            # self.thumbPosePub.position.x=trans_ee_mocap[0][0]+displacement[0]+trans_world_tip_tmp[0]
+            # self.thumbPosePub.position.y=trans_ee_mocap[0][1]+displacement[1]+trans_world_tip_tmp[1]
+            # self.thumbPosePub.position.z=trans_ee_mocap[0][2]+displacement[2]+trans_world_tip_tmp[2]
+            self.thumbPosePub.position.x=trans_SVR_tip[0][0]
+            self.thumbPosePub.position.y=trans_SVR_tip[0][1]
+            self.thumbPosePub.position.z=trans_SVR_tip[0][2]
+            self.ThumbPub.publish(self.thumbPosePub)            
        
 
             # Frame3: Line algorithm !WORKS OK!
@@ -565,16 +595,16 @@ class convert_tf():
             #                      'finger_tran', "world")
 
             # if (np.linalg.norm(self.svm_dir)!=0):
-            q_tf = self.quat_from_Vector(
-                -self.desired_end_vec)
-            self.quatPosePub.position.x=self.trans_ee_real[0]
-            self.quatPosePub.position.y=self.trans_ee_real[1]
-            self.quatPosePub.position.z=self.trans_ee_real[2]
-            self.quatPosePub.orientation.x=q_tf[0]
-            self.quatPosePub.orientation.y=q_tf[1]
-            self.quatPosePub.orientation.z=q_tf[2]
-            self.quatPosePub.orientation.w=q_tf[3]
-            self.SVRQuatPub.publish(self.quatPosePub)
+            # q_tf = self.quat_from_Vector(
+            #     -self.desired_end_vec)
+            # self.quatPosePub.position.x=self.trans_ee_real[0]
+            # self.quatPosePub.position.y=self.trans_ee_real[1]
+            # self.quatPosePub.position.z=self.trans_ee_real[2]
+            # self.quatPosePub.orientation.x=q_tf[0]
+            # self.quatPosePub.orientation.y=q_tf[1]
+            # self.quatPosePub.orientation.z=q_tf[2]
+            # self.quatPosePub.orientation.w=q_tf[3]
+            # self.SVRQuatPub.publish(self.quatPosePub)
                 # br_ee_debug_quat_com.sendTransform(trans_svr_ee[0],q_tf, rospy.Time.now(),'svr quat','SVR')
             q_tf2=self.quat_from_Vector(desired_vel_combined)
             self.totPosePub.position.x=self.trans_ee_real[0]
@@ -585,7 +615,7 @@ class convert_tf():
             self.totPosePub.orientation.z=q_tf2[2]
             self.totPosePub.orientation.w=q_tf2[3]
             self.TotQuatPub.publish(self.totPosePub)
-            br_ee_debug_quat_com.sendTransform(self.trans_ee_real,q_tf2, rospy.Time.now(),'tot quat','world')
+            # br_ee_debug_quat_com.sendTransform(self.trans_ee_real,q_tf2, rospy.Time.now(),'tot quat','world')
             rate.sleep()
 
     def get_robot_vel(self, line_target):
@@ -882,6 +912,8 @@ class convert_tf():
             "/SVRQuatPub", Pose, queue_size=3)
         self.TotQuatPub = rospy.Publisher(
             "/TotQuatPub", Pose, queue_size=3)
+        self.ThumbPub = rospy.Publisher(
+            "/ThumbPub", Pose, queue_size=3)
 
         # Debug publishers
         self.DebugVelPub = rospy.Publisher(
@@ -931,6 +963,7 @@ class convert_tf():
         #Publish SVR quat
         self.quatPosePub =Pose()
         self.totPosePub = Pose()
+        self.thumbPosePub = Pose()
 
     def publish_path(self):
         pose = PoseStamped()

@@ -9,7 +9,11 @@
 #include "std_msgs/Float64.h"
 #include "nav_msgs/Path.h"
 #include "std_msgs/Int8.h"
+#include "std_msgs/Float64MultiArray.h"
 // #include <Eigen/Dense>
+#include "eigen3/Eigen/Dense"
+#include "eigen3/Eigen/Geometry" 
+
 
 
 #include "svm_grad.h"
@@ -58,6 +62,7 @@ private:
     ros::Publisher pub_svr_gamma_thumb_;
     ros::Publisher pub_DesiredPath_;
     ros::Publisher _pub_DesiredPath;    
+    ros::Publisher pub_HistoryPath_;
 
 
 
@@ -152,10 +157,28 @@ private:
     Eigen::Vector3d SVRPose_;
     Eigen::VectorXd SVRQuat_;
     ros::Subscriber _subSVRQuat;
+    Quaternionf SVRQ_;
+    
     ros::Publisher _marker_pub2;
     Eigen::VectorXd TotQuat_;
     Eigen::Vector3d TotPose_;
     ros::Subscriber _subTotQuat;
+
+    ros::Publisher _marker_pub3;
+    Eigen::Vector3d ThumbPose_;
+    ros::Subscriber _thumbSub;
+    Quaternionf SVRThumb_;
+    ros::Subscriber _thumbForces;
+
+    // std_msgs::Float64MultiArray thumb_force_vec_;
+    std::vector<double> thumb_force_vec_;
+
+    // History of circles
+    Eigen::Vector3d Pose_History_;
+    int frame_;
+    nav_msgs::Path msg_HistoryPath_;
+    int history_max_frame_ = 200;
+    ros::Time time_now_;
 
 
 public:
@@ -199,6 +222,8 @@ private:
     void LookUpTF();
 
     void PublishFuturePath2();
+    
+    void PublishFuturePath3();
 
     void ds_simulation(Eigen::Vector2d x, double r_value);
 
@@ -209,12 +234,19 @@ private:
     void showSVRArrow();
 
     void showTotArrow();
+
+    void showThumbArrow();
     
-    void quat_from_vec();
+    Quaternionf quat_from_vec(Eigen::Vector3d vec, double dir );
 
     void UpdateSVRQuat(const geometry_msgs::Pose::ConstPtr &msg);
 
     void UpdateTotQuat(const geometry_msgs::Pose::ConstPtr &msg);
+
+    void UpdateThumb(const geometry_msgs::Pose::ConstPtr &msg);
+
+    void UpdateThumbForces(const std_msgs::Float64MultiArray &msg);
+
 
 
 };

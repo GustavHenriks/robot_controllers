@@ -93,6 +93,8 @@ bool SVRGRAD::InitializeROS()
     _subDirection = nh_.subscribe("/direction", 1, &SVRGRAD::updateDirectionState, this);
     _subSVRQuat = nh_.subscribe("/SVRQuatPub", 1, &SVRGRAD::UpdateSVRQuat, this);
     _subTotQuat = nh_.subscribe("/TotQuatPub", 1, &SVRGRAD::UpdateTotQuat, this);
+    _thumbSub  = nh_.subscribe("/ThumbPub", 1, &SVRGRAD::UpdateThumb, this); 
+    _thumbForces  = nh_.subscribe("/thumb_forces", 1, &SVRGRAD::UpdateThumbForces, this); 
     pub_desired_twist_ = nh_.advertise<geometry_msgs::TwistStamped>(output_topic_velocity_name_, 1);
     pub_desired_twist_thumb_ = nh_.advertise<geometry_msgs::TwistStamped>(output_topic_velocity_name_ + "_thumb", 1);
 
@@ -104,16 +106,23 @@ bool SVRGRAD::InitializeROS()
 
     _pub_DesiredPath = nh_.advertise<nav_msgs::Path>("SVR/desired_circle", 1);
 
+    pub_HistoryPath_ = nh_.advertise<nav_msgs::Path>("SVR/history_path", 1);
+
     _marker_pub = nh_.advertise<visualization_msgs::Marker>("visualization_marker", 1);
     _marker_pub2 = nh_.advertise<visualization_msgs::Marker>("visualization_marker2", 1);
+    _marker_pub3 = nh_.advertise<visualization_msgs::Marker>("visualization_marker3", 1);
 
     msg_DesiredPath_.poses.resize(MAX_FRAME);
-    _msg_DesiredPath.poses.resize(MAX_FRAME);
+    _msg_DesiredPath.poses.resize(_MAX_FRAME_circ);
+    msg_HistoryPath_.poses.resize(history_max_frame_);
     _grab = 0;
     _shape = visualization_msgs::Marker::ARROW;
 
     SVRQuat_.resize(4);
     TotQuat_.resize(4);
+    thumb_force_vec_.resize(6);
+
+    frame_=0;
 
     if (nh_.ok()) // Wait for poses being published
     {
@@ -133,7 +142,6 @@ void SVRGRAD::Run()
 
     while (nh_.ok())
     {
-        // LookUpTF();
 
         ComputeDesiredVelocity();
 
@@ -153,13 +161,22 @@ void SVRGRAD::Run()
 
         // PublishFuturePath();
 
-        PublishFuturePath2();
+        // PublishFuturePath2();
 
-        showSVRArrow();
+        // PublishFuturePath3();
 
-        showTotArrow();
+        // showSVRArrow();
 
+        // showTotArrow();
 
+        // showThumbArrow();
+
+        // LookUpTF();
+        // cout<<thumb_force_vec_[1]<<endl;
+        // for (int i = 0; i < thumb_force_vec_.size(); i++) {
+        //     std::cout << thumb_force_vec_.at(i) << ' ';
+        // }        
+        
         ros::spinOnce();
 
         loop_rate_.sleep();
@@ -171,7 +188,7 @@ void SVRGRAD::LookUpTF()
     try
     {
         listener_.lookupTransform("/SVR", "/link_15_tip",
-                                  ros::Time(0), transform_);
+                                  ros::Time::now(), transform_);
     }
     catch (tf::TransformException ex)
     {
@@ -433,6 +450,35 @@ void SVRGRAD::PublishFuturePath2()
     }
 }
 
+void SVRGRAD::PublishFuturePath3()
+{
+    // setting the header of the path
+    msg_HistoryPath_.header.stamp = ros::Time::now();
+    msg_HistoryPath_.header.frame_id = "SVR";
+    msg_HistoryPath_.poses[frame_].header.stamp = ros::Time::now();
+    msg_HistoryPath_.poses[frame_].header.frame_id = "SVR";
+    msg_HistoryPath_.poses[frame_].pose.position.x = ThumbPose_[0];
+    msg_HistoryPath_.poses[frame_].pose.position.y = ThumbPose_[1];
+    msg_HistoryPath_.poses[frame_].pose.position.z = ThumbPose_[2];
+    for (int frame_tmp=frame_;frame_tmp < history_max_frame_; frame_tmp++){
+        msg_HistoryPath_.poses[frame_tmp].header.stamp = ros::Time::now();
+        msg_HistoryPath_.poses[frame_tmp].header.frame_id = "SVR";
+        msg_HistoryPath_.poses[frame_tmp].pose.position.x = ThumbPose_[0];
+        msg_HistoryPath_.poses[frame_tmp].pose.position.y = ThumbPose_[1];
+        msg_HistoryPath_.poses[frame_tmp].pose.position.z = ThumbPose_[2];
+    }
+    // if (_grab == 1)  
+    if (_grab== 1)
+        pub_HistoryPath_.publish(msg_HistoryPath_);
+        frame_+=1;
+    if (_grab == 0) 
+        frame_=0;
+    if (frame_>=500)
+        frame_=0;
+    // cout << frame_ << endl;    
+}
+
+
 void SVRGRAD::ds_simulation(Eigen::Vector2d x, double r_value)
 {
 
@@ -479,6 +525,7 @@ void SVRGRAD::updateDirectionState(const std_msgs::Int8 &msg)
 void SVRGRAD::showSVRArrow()
 {
     visualization_msgs::Marker marker;
+    Vector3d pos_vec;
     // Set the frame ID and timestamp.  See the TF tutorials for information on these.
     marker.header.frame_id = "SVR";
     marker.header.stamp = ros::Time::now();
@@ -495,18 +542,21 @@ void SVRGRAD::showSVRArrow()
     marker.action = visualization_msgs::Marker::ADD;
 
     // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
+    pos_vec(0)=real_pose_(0)-0.08;
+    pos_vec(1)=real_pose_(1);
+    pos_vec(2)=real_pose_(2)-0.03;
+    SVRQ_=quat_from_vec(pos_vec,1);
     marker.pose.position.x = real_pose_[0] - 0.08;
-    ;
     marker.pose.position.y = real_pose_[1];
     marker.pose.position.z = real_pose_[2] - 0.03;
     // marker.pose.position.x = SVRPose_[0] + 0.08;
     // marker.pose.position.y = SVRPose_[1];
     // marker.pose.position.z = SVRPose_[2] - 0.03;
     // quat_from_vec();
-    marker.pose.orientation.x = SVRQuat_(0);
-    marker.pose.orientation.y = SVRQuat_(1);
-    marker.pose.orientation.z = SVRQuat_(2);
-    marker.pose.orientation.w = SVRQuat_(3);
+    marker.pose.orientation.x = SVRQ_.coeffs().x();
+    marker.pose.orientation.y = SVRQ_.coeffs().y();
+    marker.pose.orientation.z = SVRQ_.coeffs().z();
+    marker.pose.orientation.w = SVRQ_.coeffs().w();
 
     // Set the scale of the marker -- 1x1x1 here means 1m on a side
     marker.scale.x = 0.05;
@@ -582,16 +632,89 @@ void SVRGRAD::showTotArrow()
 
 }
 
-void SVRGRAD::quat_from_vec()
+void SVRGRAD::showThumbArrow()
 {
-    // Eigen::Vector3d axis_y, axis_z, axis_x, axis_z_on_y;
-    // axis_y << 0, -1, 0;
-    // axis_z = -1 * SVM.calculateGammaDerivative(real_pose_);
-    // axis_z_on_y = axis_y.dot(axis_z);
-    //     axis_z = axis_z - axis_z_on_y * axis_y
-    //     axis_z = axis_z/np.linalg.norm(axis_z)
-    //     axis_x = np.cross(axis_y, axis_z)
+    visualization_msgs::Marker marker;
+    double gain;
+    // Set the frame ID and timestamp.  See the TF tutorials for information on these.
+    marker.header.frame_id = "SVR";
+    marker.header.stamp = ros::Time::now();  
 
+    // Set the namespace and id for this marker.  This serves to create a unique ID
+    // Any marker sent with the same namespace and id will overwrite the old one
+    marker.ns = "basic_shapes";
+    marker.id = 0;
+
+    // Set the marker type.  Initially this is CUBE, and cycles between that and SPHERE, ARROW, and CYLINDER
+    marker.type = _shape;
+
+    // Set the marker action.  Options are ADD, DELETE, and new in ROS Indigo: 3 (DELETEALL)
+    marker.action = visualization_msgs::Marker::ADD;
+
+    // Set the pose of the marker.  This is a full 6DOF pose relative to the frame/time specified in the header
+    SVRThumb_=quat_from_vec(ThumbPose_,-1);
+    marker.pose.position.x = ThumbPose_[0];
+    marker.pose.position.y = ThumbPose_[1];
+    marker.pose.position.z = ThumbPose_[2];
+    // quat_from_vec();
+    marker.pose.orientation.x = SVRThumb_.coeffs().x();
+    marker.pose.orientation.y = SVRThumb_.coeffs().y();
+    marker.pose.orientation.z = SVRThumb_.coeffs().z();
+    marker.pose.orientation.w = SVRThumb_.coeffs().w();
+
+    // Set the scale of the marker -- 1x1x1 here means 1m on a side
+    gain=thumb_force_vec_[1]>0?thumb_force_vec_[1]/0.8 : 0;
+    // cout<<thumb_force_vec_[1]<<endl;
+    // gain=1;
+    marker.scale.x = 0.05*gain;
+    marker.scale.y = 0.01;
+    marker.scale.z = 0.01;
+
+    // Set the color -- be sure to set alpha to something non-zero!
+    marker.color.r = 0.0f;
+    marker.color.g = 1.0f;
+    marker.color.b = 0.0f;
+    marker.color.a = 1.0;
+
+    // marker.lifetime = ros::Duration();
+
+    // while (_marker_pub.getNumSubscribers() < 1)
+    // {
+    //     ROS_WARN_ONCE("Please create a subscriber to the marker");
+    //     sleep(1);
+    // }
+    if (_grab == 1)
+        _marker_pub3.publish(marker);
+
+}
+
+Quaternionf SVRGRAD::quat_from_vec(Eigen::Vector3d vec, double dir)
+{
+    Eigen::Vector3d axis_y, axis_z, axis_x;
+    Eigen::Matrix3f rot_mat;
+    Eigen::Quaternionf q;
+    double axis_z_on_y;
+    axis_y << 0, -1, 0;
+    axis_z = dir*-1*SVM.calculateGammaDerivative(vec);
+    axis_z_on_y = axis_y.dot(axis_z);    
+    axis_z = axis_z - axis_z_on_y * axis_y;
+    axis_z = axis_z/axis_z.norm();
+    axis_x = axis_y.cross(axis_z);
+
+    rot_mat(0,0)=axis_z(0);
+    rot_mat(1,0)=axis_z(1);
+    rot_mat(2,0)=axis_z(2);
+
+    rot_mat(0,1)=axis_x(0);
+    rot_mat(1,1)=axis_x(1);
+    rot_mat(2,1)=axis_x(2);
+
+    rot_mat(0,2)=axis_y(0);
+    rot_mat(1,2)=axis_y(1);
+    rot_mat(2,2)=axis_y(2);
+
+    q = Quaternionf(rot_mat);
+    return q;
     //     rot_mat = np.zeros((4, 4))
     //     rot_mat[:3, 0] = axis_x
     //     rot_mat[:3, 1] = axis_y
@@ -599,6 +722,22 @@ void SVRGRAD::quat_from_vec()
     //     rot_mat[3, 3] = 1
     //     q_tf = tf.transformations.quaternion_from_matrix(rot_mat)
     //     return q_tf
+
+        // def orientation_from_velocity(self, vec):
+        // axis_y = -np.array([0, 1, 0]) # Originaly negative
+        // axis_z = np.array(vec)
+        // axis_z_on_y = np.dot(axis_y, axis_z)
+        // axis_z = axis_z - axis_z_on_y * axis_y
+        // axis_z = axis_z/np.linalg.norm(axis_z)
+        // axis_x = np.cross(axis_y, axis_z)
+
+        // rot_mat = np.zeros((4, 4))
+        // rot_mat[:3, 0] = axis_x
+        // rot_mat[:3, 1] = axis_y
+        // rot_mat[:3, 2] = axis_z
+        // rot_mat[3, 3] = 1
+        // q_tf = tf.transformations.quaternion_from_matrix(rot_mat)
+        // return q_tf
 }
 
 void SVRGRAD::UpdateSVRQuat(const geometry_msgs::Pose::ConstPtr &msg)
@@ -634,3 +773,42 @@ void SVRGRAD::UpdateTotQuat(const geometry_msgs::Pose::ConstPtr &msg)
 
     // ROS_INFO_STREAM_THROTTLE(1, "Received: " << real_pose_);
 }
+
+void SVRGRAD::UpdateThumb(const geometry_msgs::Pose::ConstPtr &msg)
+{
+
+    msg_real_pose_ = *msg;
+
+    ThumbPose_(0) = msg_real_pose_.position.x;
+    ThumbPose_(1) = msg_real_pose_.position.y;
+    ThumbPose_(2) = msg_real_pose_.position.z;
+
+    // TotQuat_(0) = msg_real_pose_.orientation.x;
+    // TotQuat_(1) = msg_real_pose_.orientation.y;
+    // TotQuat_(2) = msg_real_pose_.orientation.z;
+    // TotQuat_(3) = msg_real_pose_.orientation.w;
+
+    // ROS_INFO_STREAM_THROTTLE(1, "Received: " << real_pose_);
+}
+
+void SVRGRAD::UpdateThumbForces(const std_msgs::Float64MultiArray &msg)
+{
+    std::vector<double> data(6);
+    data = msg.data;
+    thumb_force_vec_=data;
+    // cout<<thumb_force_vec_[1]<<endl;
+
+
+    // ThumbPose_(0) = msg_real_pose_.position.x;
+    // ThumbPose_(1) = msg_real_pose_.position.y;
+    // ThumbPose_(2) = msg_real_pose_.position.z;
+
+    // TotQuat_(0) = msg_real_pose_.orientation.x;
+    // TotQuat_(1) = msg_real_pose_.orientation.y;
+    // TotQuat_(2) = msg_real_pose_.orientation.z;
+    // TotQuat_(3) = msg_real_pose_.orientation.w;
+
+    // ROS_INFO_STREAM_THROTTLE(1, "Received: " << real_pose_);
+}
+
+

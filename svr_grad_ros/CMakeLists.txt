@@ -133,8 +133,8 @@ include
 add_executable(svr_grad_node 
 	${SRC_DIR}/svr_grad_node.cpp
 	${SRC_DIR}/SVRGRAD.cpp
-	${INCLUDE_DIR}/SVRGRAD.h)
-
+	${INCLUDE_DIR}/SVRGRAD.h
+)
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -151,7 +151,7 @@ add_executable(svr_grad_node
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/svr_grad_ros_node.cpp)
+# add_executable(${PROJECT_NAME}_node src/realsense.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
