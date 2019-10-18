@@ -64,10 +64,12 @@ class grasp2():
                 trans_target_raw_rotated=tf.transformations.quaternion_multiply(trans_target_raw[1],trans_world[1])
                 rospy.loginfo("Target position and orientation locked")                
                 self.target_read=True
+            # trans_target=trans_target_raw
+            # trans_target_raw_rotated=tf.transformations.quaternion_multiply(trans_target_raw[1],trans_world[1])
             # print(tf.transformations.quaternion_matrix(trans_target[1]),np.append(np.array(trans_world[0]),1))
 
             ## Use the orientaion given by PCA
-            offset=np.dot(tf.transformations.quaternion_matrix(trans_target[1]),np.array([-0.005,-0.01,0,1]))[:-1]
+            offset=np.dot(tf.transformations.quaternion_matrix(trans_target[1]),np.array([-0.03,-0.028,0,1]))[:-1]
             trans_world_rotated=np.dot(tf.transformations.quaternion_matrix(tf.transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_world[0]),1))
             trans_target_rotated=np.dot(tf.transformations.quaternion_matrix(tf.transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_target[0])+offset,1))
             target_tmp=trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([0,0,0.19])
@@ -99,16 +101,16 @@ class grasp2():
 
                 
             if self.go_to_init_possition:
-                self.custom_command.data[0:3] = [0, np.deg2rad(90), 0]
-                self.custom_command.data[3:6] = [0, 0, 0.03]
-                t_start = time.time()
-                counter = 0
-                while counter < 50:
-                    # self.custom_command.data[0:3] = [0, (counter+1)/50*np.deg2rad(90), 0]
-                    self.RobotCommandPub.publish(self.custom_command)
-                    self.GrabPub.publish(0)
-                    counter = counter+1
-                    rate.sleep()
+                # self.custom_command.data[0:3] = [0, np.deg2rad(90), 0]
+                # self.custom_command.data[3:6] = [0, 0, 0.03]
+                # t_start = time.time()
+                # counter = 0
+                # while counter < 50:
+                #     # self.custom_command.data[0:3] = [0, (counter+1)/50*np.deg2rad(90), 0]
+                #     self.RobotCommandPub.publish(self.custom_command)
+                #     self.GrabPub.publish(0)
+                #     counter = counter+1
+                #     rate.sleep()
                 self.go_to_init_possition = False
                 raw_input('Waiting to start movement')
                 self.go_to_init_possition2 = True
@@ -140,7 +142,7 @@ class grasp2():
             self.RobotCommandPub.publish(self.custom_command)
             # self.br_ee_target.sendTransform(trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([-0.025,0.009,0.0]), [0,0,0,1], rospy.Time.now(
             # ), 'target_position_rf', "world")
-            self.br_ee_target.sendTransform(trans_target_rotated[:-1]-trans_world_rotated[:-1] , [0,0,0,1], rospy.Time.now(
+            self.br_ee_target.sendTransform(trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([0,0,0.19]), trans_target_raw_rotated, rospy.Time.now(
             ), 'target_position_rf', "world")           
             self.br_ee_target_dbg.sendTransform(self.attack_position, [0,0,0,1], rospy.Time.now(
             ), 'attack_position_rf', "world")            
@@ -148,10 +150,16 @@ class grasp2():
             # rospy.loginfo_throttle(1, "Target: "+str(self.target_position))
 
             if distance_to_target<0.05 and self.attack_reached==False:
-                self.target_position=self.trans_target
+                self.target_position=self.trans_target+np.array([0,0,0.05])
+                self.robot_gain=6
                 self.attack_reached=True
 
-            elif distance_to_target<0.02 and self.target_reached==False and self.attack_reached==True:
+            elif distance_to_target<0.02 and self.attack_reached==True and self.target_reached_init==False:
+                self.target_position=self.trans_target
+                self.robot_gain=6
+                self.target_reached_init=True
+            
+            elif distance_to_target<0.01 and self.target_reached==False and self.target_reached_init==True:
                 counter = 0
                 while counter < 50:
                     self.GrabPub.publish(1)
@@ -161,6 +169,7 @@ class grasp2():
                 self.target_reached = True                
              
             if self.grasped==1:
+                self.max_vel=0.3
                 self.target_position=self.trans_target+np.array([0,0,0.3])
                 rospy.loginfo_throttle(1, ['Picked up object'])
 
@@ -429,32 +438,6 @@ class grasp2():
         self.GraspedSub = rospy.Subscriber(
             "/grasped", Int8, self.chatterCallback_Grasped)
 
-        # self.GammaSub = rospy.Subscriber(
-        #     "/svr/gamma", Float64, self.chatterCallback_Gamma)
-        # self.RobotPosDesiredSub = rospy.Subscriber(
-        #     "/convert_tf/desired_vel_in_svr", TwistStamped, self.chatterCallback_desiredVel)
-        # self.GammaSub = rospy.Subscriber(
-        #     "/thumb_forces", Float64MultiArray, self.chatterCallback_Forces)
-        # self.RobotPosConvPub = rospy.Publisher(
-        #     "/convert_tf/ee_in_svr", Pose, queue_size=3)
-        # self.RobotCommandPub = rospy.Publisher(
-        #     "/iiwa/CustomControllers/command", Float64MultiArray, queue_size=3)
-        # self.CloudPub = rospy.Publisher(
-        #     "/PointCloud/points", PointCloud)
-        # self.GrabPub = rospy.Publisher(
-        #     "/grab", Int8, queue_size=3)
-        # self.DirPub = rospy.Publisher(
-        #     "/direction", Int8, queue_size=3)
-        # self.SVRQuatPub = rospy.Publisher(
-        #     "/SVRQuatPub", Pose, queue_size=3)
-        # self.TotQuatPub = rospy.Publisher(
-        #     "/TotQuatPub", Pose, queue_size=3)
-
-        # # Debug publishers
-        # self.DebugVelPub = rospy.Publisher(
-        #     "/debug/vel_combined", Pose, queue_size=3)
-        # self.DebugSvrPub = rospy.Publisher(
-        #     "/debug/svr_combined", Pose, queue_size=3)
 
     def init_params(self):
         # Initial position
@@ -464,10 +447,8 @@ class grasp2():
         self.custom_command.data = [0, 0, 0, 0, 0, 0]
 
         # Target
-        # self.target_init = self.trans_target
-        # self.attack_position = self.target_init + np.array([0,0,0.2])
-        # self.target_position = self.attack_position
         self.target_reached = False
+        self.target_reached_init = False
         self.attack_reached = False
         self.target_position_initialized=False
         self.target_read = False
@@ -479,51 +460,10 @@ class grasp2():
 
         # Robot parameters
         self.max_vel = 0.4
-        self.robot_gain = 5
+        self.robot_gain = 6
 
         # Grasped
         self.grasped = 0
-    #     self.desired_end_received = False
-    #     self.Hand_received = False
-    #     self.end = Pose()
-    #     self.ee_in_svr = Pose()
-    #     self.trans_arm = []
-    #     # rx ry rz and vx vy vz (first desired orientation and then desired velocity)
-    #     self.custom_command = Float64MultiArray()
-    #     self.forces_vec = np.array([0, 0, 0, 0, 0, 0])
-    #     self.svm_dir = np.array([0, 0, 0])
-
-    #     self.hand_target = False
-    #     self.custom_command.data = [0, 0, 0, 0, 0, 0]
-    #     self.forces_received = False
-
-    #     self.target_vec_x = [
-    #         float(i)/10000-0.02 for i in range(1800, 1549, -29)]
-    #     self.target_vec_y = [0.05, 0.075, 0.1,
-    #                             0.135, 0.17, 0.195, 0.24, 0.28, 0.28]
-    #     self.target_vec_y2 = self.target_vec_y[::-1]
-    #     self.end_reached = False
-
-    #     # Debug
-    #     self.debugVelPose = Pose()
-    #     self.debugSvrPose = Pose()
-
-    #     # Logging transforms
-    #     self.hand_logged = False
-    #     self.ee_svr_logged = False
-    #     self.svr_ee_logged = False
-    #     self.ee_world_logged = False
-    #     self.ee_real_logged = False
-    #     self.ee_line_target_logged = False
-    #     self.ee_svr_target_logged = False
-    #     self.ee_svr_target_logged2 = False
-    #     self.world_svr_logged = False
-    #     self.world_line_logged = False
-    #     self.ee_mocap_logged = False  
-
-    #     #Publish SVR quat
-    #     self.quatPosePub =Pose()
-    #     self.totPosePub = Pose()
 
     def publish_path(self):
         pose = PoseStamped()
