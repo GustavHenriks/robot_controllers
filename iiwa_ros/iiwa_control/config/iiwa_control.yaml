@@ -71,6 +71,7 @@ iiwa:
     controllers:
       # LinearDS: {type: "LinearDSController", params: [1., 1., 1.]}
       PassiveDS: {type: "PassiveDSController", params: [100, 33]} #90, 30 for Massage
+      # PassiveDS: {type: "PassiveDSController", params: [33, 10]} #90, 30 for Massage
       PD: {type: "PidController", params: [20., 2.], input: "Orientation", output: "Torque"}
       # PD: {type: "PidController", params: [5., 5.], input: "Orientation", output: "Torque"}
     # structure:

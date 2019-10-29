@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+## Used to pick up objects from the top
 import rospy
 import numpy as np
 import math
@@ -10,7 +11,7 @@ from sensor_msgs.msg import PointCloud
 import time
 from nav_msgs.msg import Path
 
-class grasp2():
+class grasp_all():
     def __init__(self):
 
         freq = 200
@@ -69,7 +70,7 @@ class grasp2():
             # print(tf.transformations.quaternion_matrix(trans_target[1]),np.append(np.array(trans_world[0]),1))
 
             ## Use the orientaion given by PCA
-            offset=np.dot(tf.transformations.quaternion_matrix(trans_target[1]),np.array([-0.03,-0.028,0,1]))[:-1]
+            offset=np.dot(tf.transformations.quaternion_matrix(trans_target[1]),np.array([-0.028,0,0,1]))[:-1]
             trans_world_rotated=np.dot(tf.transformations.quaternion_matrix(tf.transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_world[0]),1))
             trans_target_rotated=np.dot(tf.transformations.quaternion_matrix(tf.transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_target[0])+offset,1))
             target_tmp=trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([0,0,0.19])
@@ -142,7 +143,9 @@ class grasp2():
             self.RobotCommandPub.publish(self.custom_command)
             # self.br_ee_target.sendTransform(trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([-0.025,0.009,0.0]), [0,0,0,1], rospy.Time.now(
             # ), 'target_position_rf', "world")
-            self.br_ee_target.sendTransform(trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([0,0,0.19]), trans_target_raw_rotated, rospy.Time.now(
+            # self.br_ee_target.sendTransform(trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([0,0,0.19]), trans_target_raw_rotated, rospy.Time.now(
+            # ), 'target_position_rf', "world")           
+            self.br_ee_target.sendTransform(trans_target_rotated[:-1]-trans_world_rotated[:-1], trans_target_raw_rotated, rospy.Time.now(
             ), 'target_position_rf', "world")           
             self.br_ee_target_dbg.sendTransform(self.attack_position, [0,0,0,1], rospy.Time.now(
             ), 'attack_position_rf', "world")            
@@ -477,4 +480,4 @@ class grasp2():
         self.path_pub.publish(self.path)
 
 if __name__ == '__main__':
-    grasp2()
+    grasp_all()
