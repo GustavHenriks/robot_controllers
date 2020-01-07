@@ -30,25 +30,6 @@
 #include <robot_controllers/SumController.hpp>
 
 namespace iiwa_control {
-    template <class MatT>
-    Eigen::Matrix<typename MatT::Scalar, MatT::ColsAtCompileTime, MatT::RowsAtCompileTime> pseudo_inverse(const MatT& mat, typename MatT::Scalar tolerance = typename MatT::Scalar{1e-4}) // choose appropriately
-    {
-        typedef typename MatT::Scalar Scalar;
-        auto svd = mat.jacobiSvd(Eigen::ComputeFullU | Eigen::ComputeFullV);
-        const auto& singularValues = svd.singularValues();
-        Eigen::Matrix<Scalar, MatT::ColsAtCompileTime, MatT::RowsAtCompileTime> singularValuesInv(mat.cols(), mat.rows());
-        singularValuesInv.setZero();
-        for (unsigned int i = 0; i < singularValues.size(); ++i) {
-            if (singularValues(i) > tolerance) {
-                singularValuesInv(i, i) = Scalar{1} / singularValues(i);
-            }
-            else {
-                singularValuesInv(i, i) = Scalar{0};
-            }
-        }
-        return svd.matrixV() * singularValuesInv * svd.matrixU().adjoint();
-    }
-
     std::vector<std::vector<std::string>> get_types(const std::string& input, const std::string& output)
     {
         std::vector<std::vector<std::string>> result(2);
@@ -191,6 +172,12 @@ namespace iiwa_control {
             return false;
         }
 
+        // Massaging nullspace values
+        // qd_null_ <<     0.044752691045324394, 0.6951627023357917, -0.01416978801753847, -1.0922311725109015, -0.0050429618456282, 1.1717338014778385, -0.01502630060305613;
+        // Grasping
+        qd_null_ <<     0.044752691045324394, 0.051627023357917, -0.01416978801753847, -1.0922311725109015, -0.0050429618456282, 1.1717338014778385, -0.01502630060305613;
+        pub_force = n.advertise<std_msgs::Float64MultiArray>("/robot/forces", 3);
+
         // Get basic parameters
         n.param<std::string>("params/space", operation_space_, "joint"); // Default operation space is task-space
 
@@ -327,25 +314,6 @@ namespace iiwa_control {
             }
         }
 
-        null_space_control_ = false;
-        if (operation_space_ == "task") {
-            std::vector<double> joints;
-            n.getParam("params/null_space/joints", joints);
-            null_space_control_ = (joints.size() == n_joints_);
-
-            if (null_space_control_) {
-                null_space_joint_config_ = Eigen::VectorXd::Map(joints.data(), joints.size());
-
-                null_space_Kp_ = 20.;
-                null_space_Kd_ = 0.1;
-                null_space_max_torque_ = 10.;
-
-                n.getParam("params/null_space/Kp", null_space_Kp_);
-                n.getParam("params/null_space/Kp", null_space_Kd_);
-                n.getParam("params/null_space/max_torque", null_space_max_torque_);
-            }
-        }
-
         unsigned int ctrl_size = ctrl_names.size();
 
         if (ctrl_size == 0) {
@@ -466,12 +434,11 @@ namespace iiwa_control {
         std::vector<double>& commands = *commands_buffer_.readFromRT();
 
         Eigen::MatrixXd jac(6, n_joints_);
-        Eigen::MatrixXd jac_deriv(6, n_joints_);
-        Eigen::MatrixXd jac_t_pinv(n_joints_, 6);
         Eigen::VectorXd eef(6);
 
+        iiwa_tools::RobotState robot_state;
+
         if (operation_space_ == "task") {
-            iiwa_tools::RobotState robot_state;
             robot_state.position.resize(n_joints_);
             robot_state.velocity.resize(n_joints_);
 
@@ -480,8 +447,8 @@ namespace iiwa_control {
                 robot_state.velocity[i] = joints_[i].getVelocity();
             }
 
-            std::tie(jac, jac_deriv) = tools_.jacobians(robot_state);
-            jac_t_pinv = pseudo_inverse(Eigen::MatrixXd(jac.transpose()));
+            jac = tools_.jacobian(robot_state);
+            pseudo_inverse(jac.transpose(), jac_t_pinv_);
             auto ee_state = tools_.perform_fk(robot_state);
             Eigen::AngleAxisd aa(ee_state.orientation);
             eef.head(3) = aa.axis() * aa.angle();
@@ -492,7 +459,7 @@ namespace iiwa_control {
 
         cmd = Eigen::VectorXd::Map(commands.data(), commands.size());
 
-        robot_controllers::RobotState curr_state, robot_state;
+        robot_controllers::RobotState curr_state;
         curr_state.position_ = Eigen::VectorXd::Zero(n_joints_);
         curr_state.velocity_ = Eigen::VectorXd::Zero(n_joints_);
         curr_state.acceleration_ = Eigen::VectorXd::Zero(n_joints_);
@@ -507,13 +474,12 @@ namespace iiwa_control {
         }
 
         if (operation_space_ == "task") {
-            if (null_space_control_)
-                robot_state = curr_state;
-
             Eigen::VectorXd pos = eef;
             Eigen::VectorXd vel = jac * curr_state.velocity_;
-            Eigen::VectorXd acc = jac * curr_state.acceleration_ + jac_deriv * curr_state.velocity_;
-            Eigen::VectorXd f = jac_t_pinv * curr_state.force_; // TO-DO: This is not perfect, but should be enough
+            Eigen::VectorXd acc = jac * curr_state.acceleration_;
+            // Eigen::VectorXd f = jac * curr_state.force_;
+            Eigen::VectorXd f = jac_t_pinv_ * curr_state.force_;
+
 
             curr_state.position_ = pos.tail(3);
             curr_state.velocity_ = vel.tail(3);
@@ -583,20 +549,40 @@ namespace iiwa_control {
 
         if (operation_space_ == "task") {
             // output.head(3) = Eigen::VectorXd::Zero(3);
-            output = jac.transpose() * output;
 
-            // Add null-space signal if wanted
-            if (null_space_control_) {
-                Eigen::VectorXd null_space_signal = null_space_Kp_ * (null_space_joint_config_ - robot_state.position_) - null_space_Kd_ * robot_state.velocity_;
-                Eigen::VectorXd null_space_force = (Eigen::MatrixXd::Identity(n_joints_, n_joints_) - jac.transpose() * jac_t_pinv) * null_space_signal;
-                for (int i = 0; i < null_space_force.size(); i++) {
-                    if (null_space_force(i) > null_space_max_torque_)
-                        null_space_force(i) = null_space_max_torque_;
-                    else if (null_space_force(i) < -null_space_max_torque_)
-                        null_space_force(i) = -null_space_max_torque_;
-                }
-                output = output + null_space_force;
+            nullspace_torque_ << (Eigen::MatrixXd::Identity(7, 7) - jac.transpose()*jac_t_pinv_) * (20.0*(qd_null_ - robot_state.position)- 0.1*robot_state.velocity);
+
+            double tau_max = 10;
+            for (unsigned int i = 0; i < n_joints_; i++) {
+                nullspace_torque_[i] = (nullspace_torque_[i] > tau_max) ?  tau_max : nullspace_torque_[i];
+                nullspace_torque_[i] = (nullspace_torque_[i] < -tau_max) ?  -tau_max : nullspace_torque_[i];
             }
+
+            Eigen::Vector6d force;
+            force = output;
+            output = jac.transpose() * force + nullspace_torque_;
+            // output = jac.transpose() * force;
+            
+            
+            // force_vec.data.clear();
+            // force_vec.layout.dim.push_back(std_msgs::MultiArrayDimension());
+            // force_vec.layout.dim[0].size = force.size();
+            // force_vec.layout.dim[0].stride = 1;
+            // force_vec.layout.dim[0].label = "x"; // or whatever name you typically use to index force
+
+            // copy in the data
+            // force_vec.data.clear();
+            // force_vec.data.push_back(force);
+            // force_vec.data.insert(force_vec.data.end(), force);
+            // ROS_INFO_STREAM_THROTTLE(1,"force_vec" << curr_state.force_ <<" "<< curr_state.torque_ );
+            // pub_force.publish(force_vec);
+            // force_vec.data<<jac_t_pinv_*output;
+
+            // ROS_INFO_STREAM_THROTTLE(1,"Desired torque : " << output);
+            // ROS_INFO_STREAM_THROTTLE(1,"Is this small? : \n" <<jac_t_pinv_* output - force);
+
+
+
         }
 
         // ROS_INFO_STREAM("Effort: " << output.transpose());

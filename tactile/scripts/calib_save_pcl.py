@@ -9,10 +9,12 @@ import tf
 from std_msgs.msg import Int8
 # from sensor_msgs.msg import PointCloud
 from mpl_toolkits.mplot3d import Axes3D
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Point32
 from visualization_msgs.msg import MarkerArray
 from sklearn.decomposition import PCA 
 import matplotlib.pyplot as plt
+from sensor_msgs.msg import PointCloud2
+import sensor_msgs.point_cloud2 as pc2
 # import time
 # from nav_msgs.msg import Path
 
@@ -31,10 +33,8 @@ class marker_to_target():
         self.change_vec_sum=0
         rospy.init_node('marker_to_target', anonymous=True)
         rate = rospy.Rate(freq)
-        self.MarkerSub = rospy.Subscriber(
-            "/sr/object_clusters_markerArray", MarkerArray, self.chatterCallback_Marker)  
-        self.SaladPub = rospy.Publisher(
-            "/salad", Int8, queue_size=3)
+        self.PclSub = rospy.Subscriber(
+            "/cloud", PointCloud2, self.chatterCallback_PCL)  
         self.salad_value=0
         self.salad_detected=False
         br_target = tf.TransformBroadcaster()
@@ -47,302 +47,30 @@ class marker_to_target():
         # self.plot_test()
         print("Running...")
         while not rospy.is_shutdown():
-            # self.plot_pcl()
-            ###  Used for testing the accuracy of the grip
-            # try:            
-            #     trans_ee_test = self.listener.lookupTransform(
-            #         'world', 'mocap_test_object', rospy.Time(0))
-            #     # if not self.ee_svr_logged:
-            #     #     rospy.loginfo("ee_real transform received")
-            #     #     self.ee_svr_logged = True
-            # except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            #     continue  
-            # quat_test1=tf.transformations.quaternion_multiply(trans_ee_test[1],tf.transformations.quaternion_about_axis(np.pi,(1,0,0)))
-            try:            
-                trans_ee_real = self.listener.lookupTransform(
-                    'camera_depth_optical_frame', 'mocap_world', rospy.Time(0))
-                # if not self.ee_svr_logged:
-                #     rospy.loginfo("ee_real transform received")
-                #     self.ee_svr_logged = True
-            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                continue            
-            # print(trans_ee_real)
-
-            try:
-                common_time = self.listener.getLatestCommonTime(
-                'mocap_realsense_config_fixed', 'camera_depth_optical_frame') 
-            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-                # print(tf.LookupException())
-                continue
-            self.up=np.dot(tf.transformations.quaternion_matrix(trans_ee_real[1]),z_in_world)[:-1]
-            quat=self.quat_from_Vector_y(self.x_dir)
-            # quat=self.quat_from_Vector(np.append(self.x_dir,0))
-            # print(np.linalg.norm(quat))
-            br_target.sendTransform([self.x,self.y,self.z],quat,common_time,'target_position','camera_depth_optical_frame')
-            # br_target.sendTransform(trans_ee_test[0]+np.array([0,0,0.25]),quat_test1,common_time,'target_position_test','world')
-            # br_test.sendTransform([self.x+0.1,self.y,self.z],,common_time,'target_position','camera_depth_optical_frame')
-            # br_target.sendTransform([self.x,self.y,self.z],trans_ee_real[1],common_time,'target_position','camera_depth_optical_frame')
-            # br_test.sendTransform([self.x,self.y,self.z],trans_ee_real[1],common_time,'test','camera_depth_optical_frame')
-            # a1,a2,a3=tf.transformations.rotation_from_matrix(tf.transformations.quaternion_matrix(trans_ee_real[1]))
-            # if self.salad_value==1:
-            #     self.SaladPub.publish(1)
             rate.sleep()
 
-    def chatterCallback_Marker(self, data):
-        self.data = data.markers
-        self.data_received=True
+    def chatterCallback_PCL(self, data):
         x_vec=[]
         y_vec=[]
         z_vec=[]
-        x_vec_multi=[]
-        y_vec_multi=[]
-        z_vec_multi=[]
-        # x_vec2=[]
-        # y_vec2=[]
-        # z_vec2=[]
-        for i in range (len(self.data[0].points)):
-            x_vec.append(self.data[0].points[i].x)
-            y_vec.append(self.data[0].points[i].y)
-            z_vec.append(self.data[0].points[i].z)
-        for i in range(15):
-            nbr_of_points=len(self.data[i].points)
-            if self.hist_vec[i]!=nbr_of_points:
-                self.change_vec[i]=1
-            else:
-                self.change_vec[i]=0
-            self.hist_vec[i]=nbr_of_points
-
-        x_vec_mean=np.mean(x_vec)
-        y_vec_mean=np.mean(y_vec)
-        z_vec_mean=np.mean(z_vec)
-
-        self.change_vec_sum=0.1*sum(self.change_vec)+0.9*self.change_vec_sum
-        print("Clusters : ",self.change_vec_sum)
-        if self.change_vec_sum>7 and self.salad_detected==False:
-            print("Salad_detected")
-            self.salad_value=1
-            self.salad_detected=True
-        if self.change_vec_sum>7:
-            self.salad_value=1
-            self.salad_detected=True
-            for i in range (int(self.change_vec_sum)):
-                x_vec_tmp=[]
-                y_vec_tmp=[]
-                z_vec_tmp=[]
-                for j in range (len(self.data[i].points)):
-                    x_vec_tmp.append(self.data[i].points[j].x)
-                    y_vec_tmp.append(self.data[i].points[j].y)
-                    z_vec_tmp.append(self.data[i].points[j].z)
-                x_vec_multi.append(np.mean(x_vec_tmp))
-                y_vec_multi.append(np.mean(y_vec_tmp))
-                z_vec_multi.append(np.mean(z_vec_tmp))
-            # print(x_vec_multi)
-            x_vec_mean=np.mean(x_vec_multi)
-            y_vec_mean=np.mean(y_vec_multi)
-            z_vec_mean=np.mean(z_vec_multi)            
-        # print(len(self.data[0].points),len(self.data[1].points),len(self.data[2].points),len(self.data[3].points),len(self.data[4].points),
-        # len(self.data[5].points),len(self.data[6].points),len(self.data[7].points),
-        # len(self.data[8].points),len(self.data[9].points),len(self.data[10].points),
-        # len(self.data[11].points),len(self.data[12].points),len(self.data[13].points),
-        # len(self.data[14].points),len(self.data[15].points),len(self.data[16].points),)
-        # for i in range (len(self.data[1].points)):    
-        #     x_vec2.append(self.data[1].points[i].x)
-        #     y_vec2.append(self.data[1].points[i].y)
-        #     z_vec2.append(self.data[1].points[i].z)
-        # x_vec2_mean=np.mean(x_vec2)
-        # y_vec2_mean=np.mean(y_vec2)
-        # z_vec2_mean=np.mean(z_vec2)
-        self.x=x_vec_mean*0.1+0.90*self.x
-        self.y=y_vec_mean*0.1+0.90*self.y
-        self.z=z_vec_mean*0.1+0.90*self.z
-        print("Dist = ",np.linalg.norm(np.array((x_vec_mean,y_vec_mean,z_vec_mean))-np.array((self.x,self.y,self.z))))
-        if (np.linalg.norm(np.array((x_vec_mean,y_vec_mean,z_vec_mean))-np.array((self.x,self.y,self.z)))<0.005):
-            print("Ready")
-        # zero_closest=np.linalg.norm([x_vec_mean,y_vec_mean,z_vec_mean])>np.linalg.norm([x_vec2_mean,y_vec2_mean,z_vec2_mean])
-        # if zero_closest:
-        #     self.x=np.mean(x_vec)*0.1+0.90*self.x
-        #     self.y=np.mean(y_vec)*0.1+0.90*self.y
-        #     self.z=np.mean(z_vec)*0.1+0.90*self.z
-        # elif not zero_closest:
-        #     self.x=np.mean(x_vec2)*0.1+0.90*self.x
-        #     self.y=np.mean(y_vec2)*0.1+0.90*self.y
-        #     self.z=np.mean(z_vec2)*0.1+0.90*self.z
-        # self.x=np.mean(x_vec)*0.1+0.90*self.x
-        # self.y=np.mean(y_vec)*0.1+0.90*self.y
-        # self.z=np.mean(z_vec)*0.1+0.90*self.z
-
-        pca = PCA(n_components=3,whiten=True)
-        # # print(np.stack((x_vec,y_vec,z_vec),axis=-1))
-        # print(np.mean(z_vec))
-        x_vec=x_vec-x_vec_mean
-        y_vec=y_vec-y_vec_mean
-        z_vec=z_vec-z_vec_mean
-        # print(np.mean(z_vec))
-        pca.fit(np.stack((x_vec,y_vec,z_vec),axis=-1))
-        # pca.fit(np.stack((x_vec,y_vec),axis=-1))
-        # print(pca.components_.T)
-        # print("Var: ", pca.explained_variance_ratio_)
-        V = pca.components_
-        # V /= V.std()
-        # # print("V=",V.T)
-        # # print(V.T[0,:],V.T[1,:],V.T[2,:])
-        # # x_pca_axis = V.T[0,:]
-        # # y_pca_axis = V.T[1,:]
-        # # z_pca_axis = V.T[2,:]
-        x_pca_axis, y_pca_axis, z_pca_axis = V
-        # x_pca_axis, y_pca_axis= V.T
-        # if np.argmax(x_pca_axis)!=np.argmax(np.abs(x_pca_axis)):
-        if x_pca_axis[0] < 0:
-            x_pca_axis=-x_pca_axis        
-        # if z_pca_axis[2] < 0:
-        #     x_pca_axis=-x_pca_axis
-        #     y_pca_axis=-y_pca_axis
-        #     z_pca_axis=-x_pca_axis
-            
-        # print( x_pca_axis)
-        # print(np.dot(self.x_pca_axis_old,x_pca_axis))
-        # if self.counter>50 and np.dot(self.x_pca_axis_old,x_pca_axis)<0.5:
-        #     x_pca_axis=self.x_pca_axis_oldf
-        # if np.dot(self.x_pca_axis_best,x_pca)
-        # if np.sign(max(x_pca_axis))==-1:
-        #     x_pca_axis=-x_pca_axis
-        self.x_dir=x_pca_axis*0.01+0.99*self.x_dir
-        # self.x_dir=x_pca_axis
-        self.x_pca_axis_old=x_pca_axis
-        # self.counter=self.counter+1
-        # self.x_dir=[0,1,0]
-        # print("X_v: ", x_pca_axis)
-        # # print(x_pca_axis[0])
-        # # plt.plot(x_vec_mean,y_vec_mean,z_vec_mean,1,1,1, color='red')
-        # # plt.quiver(x_vec_mean,y_vec_mean,z_vec_mean,x_pca_axis,y_pca_axis,z_pca_axis)
-        # # plt.quiver(x_vec_mean,y_vec_mean,z_vec_mean,x_pca_axis,y_pca_axis,z_pca_axis)
-        # V = np.array([[1,1,-1],[-2,2,1],[4,-7,1]])
-        # origin = [0], [0] # origin point
-
-        # plt.quiver(0,0,0, V[:,0], V[:,1], V[:,2], color=['r','b','g'], scale=21)
-        # plt.show()
-        # fig = plt.figure()
-        # ax = fig.gca(projection='3d')
-        # print(np.linalg.norm([x_pca_axis,y_pca_axis,z_pca_axis],axis=1))
-        # ax.quiver([x_vec_mean,x_vec_mean,x_vec_mean], [y_vec_mean,y_vec_mean,y_vec_mean], [z_vec_mean,z_vec_mean,z_vec_mean], x_pca_axis, y_pca_axis, z_pca_axis,length=0.01)
-        # fig = plt.figure(1, figsize=(4, 3))
-        # elev = -40
-        # azim = -80
-        # ax = Axes3D(fig, rect=[0, 0, .95, 1], elev=elev, azim=azim)
-        # ax = fig.gca(projection='3d')
-        # # x_pca_plane = np.r_[x_pca_axis[:2], - x_pca_axis[1::-1]]
-        # # y_pca_plane = np.r_[y_pca_axis[:2], - y_pca_axis[1::-1]]
-        # # z_pca_plane = np.r_[z_pca_axis[:2], - z_pca_axis[1::-1]]
-        # # x_pca_plane.shape = (2, 2)
-        # # y_pca_plane.shape = (2, 2)
-        # # z_pca_plane.shape = (2, 2)
-        # # ax.plot_surface(x_pca_plane, y_pca_plane, z_pca_plane)
-        # # ax.w_xaxis.set_ticklabels([])
-        # # ax.w_yaxis.set_ticklabels([])
-        # # ax.w_zaxis.set_ticklabels([])        
-        # ax.scatter(x_vec, y_vec, z_vec, marker='+', alpha=.4)
-        # ax.quiver(0,0,0, x_pca_axis[0],x_pca_axis[1],x_pca_axis[2],length=0.01,color='red')
-        # ax.quiver(0,0,0, y_pca_axis[0],y_pca_axis[1],y_pca_axis[2],length=0.01,color='green')
-        # ax.quiver(0,0,0, z_pca_axis[0],z_pca_axis[1],z_pca_axis[2],length=0.01,color='blue')
-        # plt.show()
-        # with open("points2.txt", mode='w') as f:  # I add the mode='w'
-        #     for i in range(len(x_vec)):
-        #         f.write("%f,"%float(x_vec[i]))
-        #         f.write("%f,"%float(y_vec[i]))
-        #         f.write("%f,\n"%float(z_vec[i]))
-
-    def quat_from_Vector(self, vec):
-        # vec=np.array([1,0,0])
-        ## Align for x
-        # axis_x = vec/np.linalg.norm(np.array(vec))
-        # axis_z = -np.array([0,0,1])
-        # axis_z_on_x = np.dot(axis_z, axis_x)
-        # axis_z_2 = axis_z - axis_z_on_x * axis_x
-        # axis_z_3 = axis_z_2/np.linalg.norm(axis_z_2)
-        # axis_y = np.cross(axis_z_3, axis_x)
-        ## Align for z
-        axis_x = vec/np.linalg.norm(np.array(vec))
-        axis_z = -self.up/np.linalg.norm(self.up)
-        axis_x_on_z = np.dot(axis_x, axis_z)
-        axis_x_2 = axis_x - axis_x_on_z * axis_z
-        axis_x_3 = axis_x_2/np.linalg.norm(axis_x_2)
-        axis_y = np.cross(axis_z, axis_x_3)
-        axis_y_2 = axis_y/np.linalg.norm(axis_y)
-        # print(np.linalg.norm(axis_x), np.linalg.norm(axis_y), np.linalg.norm(axis_z))
-        # print(np.dot(axis_x,axis_z))
-        # axis_y = -np.array([0, 1, 0]) # Originaly negative
-        # axis_z = np.array(vec)
-        # axis_z_on_y = np.dot(axis_y, axis_z)
-        # axis_z = axis_z - axis_z_on_y * axis_y
-        # axis_z = axis_z/np.linalg.norm(axis_z)
-        # axis_x = np.cross(axis_y, axis_z)
-        # print(np.linalg.norm(axis_x_3),np.linalg.norm(axis_y_2),np.linalg.norm(axis_z))
-        rot_mat = np.zeros((4, 4))
-        rot_mat[:3, 0] = axis_x_3
-        rot_mat[:3, 1] = axis_y_2
-        rot_mat[:3, 2] = axis_z
-        rot_mat[3, 3] = 1
-        q_tf = tf.transformations.quaternion_from_matrix(rot_mat)
-        # print(rot_mat)
-        # return q_tf/np.linalg.norm(q_tf)
-        return q_tf
-
-    def quat_from_Vector_y(self, vec):
-        # vec=np.array([1,0,0])
-        ## Align for x
-        # axis_x = vec/np.linalg.norm(np.array(vec))
-        # axis_z = -np.array([0,0,1])
-        # axis_z_on_x = np.dot(axis_z, axis_x)
-        # axis_z_2 = axis_z - axis_z_on_x * axis_x
-        # axis_z_3 = axis_z_2/np.linalg.norm(axis_z_2)
-        # axis_y = np.cross(axis_z_3, axis_x)
-        ## Align for z
-        axis_x = vec/np.linalg.norm(np.array(vec))
-        axis_z = -self.up/np.linalg.norm(self.up)
-        axis_x_on_z = np.dot(axis_x, axis_z)
-        axis_x_2 = axis_x - axis_x_on_z * axis_z
-        axis_x_3 = axis_x_2/np.linalg.norm(axis_x_2)
-        axis_y = np.cross(axis_z, axis_x_3)
-        axis_y_2 = axis_y/np.linalg.norm(axis_y)
-        # print(np.linalg.norm(axis_x), np.linalg.norm(axis_y), np.linalg.norm(axis_z))
-        # print(np.dot(axis_x,axis_z))
-        # axis_y = -np.array([0, 1, 0]) # Originaly negative
-        # axis_z = np.array(vec)
-        # axis_z_on_y = np.dot(axis_y, axis_z)
-        # axis_z = axis_z - axis_z_on_y * axis_y
-        # axis_z = axis_z/np.linalg.norm(axis_z)
-        # axis_x = np.cross(axis_y, axis_z)
-        # print(np.linalg.norm(axis_x_3),np.linalg.norm(axis_y_2),np.linalg.norm(axis_z))
-        rot_mat = np.zeros((4, 4))
-        rot_mat[:3, 0] = axis_y_2
-        rot_mat[:3, 1] = -axis_x_3
-        rot_mat[:3, 2] = axis_z
-        rot_mat[3, 3] = 1
-        q_tf = tf.transformations.quaternion_from_matrix(rot_mat)
-        # print(rot_mat)
-        # return q_tf/np.linalg.norm(q_tf)
-        return q_tf    
-
-
-    def plot_test(self):
-        fig = plt.figure()
-        ax = fig.gca(projection='3d')
-
-        # Make the grid
-        x, y, z = np.meshgrid(np.arange(-0.8, 1, 0.2),
-                            np.arange(-0.8, 1, 0.2),
-                            np.arange(-0.8, 1, 0.8))
-
-        # Make the direction data for the arrows
-        u = np.sin(np.pi * x) * np.cos(np.pi * y) * np.cos(np.pi * z)
-        v = -np.cos(np.pi * x) * np.sin(np.pi * y) * np.cos(np.pi * z)
-        w = (np.sqrt(2.0 / 3.0) * np.cos(np.pi * x) * np.cos(np.pi * y) *
-            np.sin(np.pi * z))
-
-        # ax.quiver(x, y, z, u, v, w, length=0.1)
-        ax.quiver(0,0,0,-1,0,0,length=0.1)
-
-        plt.show()
+        # xaxis, yaxis, zaxis = (1, 0, 0), (0, 1, 0), (0, 0, 1)
+        # I = tf.transformations.identity_matrix()
+        # Rx = tf.transformations.rotation_matrix(-0.0150, xaxis)
+        # Ry = tf.transformations.rotation_matrix(0.0786, yaxis)
+        # Rz = tf.transformations.rotation_matrix(0.0121, zaxis)
+        # R = concatenate_matrices(Rx, Ry, Rz)
+        for data in pc2.read_points(data, skip_nans=True):
+            data2=data
+            x_vec.append(data2[0])
+            y_vec.append(data2[1])
+            z_vec.append(data2[2])
+                
+        with open("calib_pcl.txt", mode='w') as f:  # I add the mode='w'
+            print('Saving')
+            for i in range(len(x_vec)):
+                f.write("%f,"%float(x_vec[i]))
+                f.write("%f,"%float(y_vec[i]))
+                f.write("%f,\n"%float(z_vec[i]))
 
     def plot_pcl(self):
         Vec=[0.053063,-0.009758,-0.022948,

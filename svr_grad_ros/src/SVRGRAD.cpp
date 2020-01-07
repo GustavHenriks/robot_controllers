@@ -143,17 +143,17 @@ void SVRGRAD::Run()
     while (nh_.ok())
     {
 
-        ComputeDesiredVelocity();
+        // ComputeDesiredVelocity();
 
-        PublishDesiredVelocity();
+        // PublishDesiredVelocity();
 
         // ComputeDesiredVelocityThumb();
 
         // PublishDesiredVelocityThumb();
 
-        ComputeGamma();
+        // ComputeGamma();
 
-        PublishGamma();
+        // PublishGamma();
 
         // ComputeGammaThumb();
 

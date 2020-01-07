@@ -61,8 +61,8 @@
   <xacro:property name="max_velocity_3" value="${100 * PI / 180.}"/>
   <xacro:property name="max_velocity_4" value="${130 * PI / 180.}"/>
   <xacro:property name="max_velocity_5" value="${140 * PI / 180.}"/>
-  <xacro:property name="max_velocity_6" value="${PI}"/>
-  <xacro:property name="max_velocity_7" value="${PI}"/>
+  <xacro:property name="max_velocity_6" value="${PI/2}"/>
+  <xacro:property name="max_velocity_7" value="${PI/2}"/>
 
   <xacro:macro name="iiwa7" params="parent hardware_interface robot_name collision_postfix *origin">
 

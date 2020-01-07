@@ -51,7 +51,7 @@ class marker_to_target():
             ###  Used for testing the accuracy of the grip
             # try:            
             #     trans_ee_test = self.listener.lookupTransform(
-            #         'world', 'mocap_test_object', rospy.Time(0))
+            #         'world', 'mocap_realsense_config', rospy.Time(0))
             #     # if not self.ee_svr_logged:
             #     #     rospy.loginfo("ee_real transform received")
             #     #     self.ee_svr_logged = True
@@ -66,7 +66,7 @@ class marker_to_target():
                 #     self.ee_svr_logged = True
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
                 continue            
-            # print(trans_ee_real)
+            print(trans_ee_real)
 
             try:
                 common_time = self.listener.getLatestCommonTime(
@@ -79,7 +79,7 @@ class marker_to_target():
             # quat=self.quat_from_Vector(np.append(self.x_dir,0))
             # print(np.linalg.norm(quat))
             br_target.sendTransform([self.x,self.y,self.z],quat,common_time,'target_position','camera_depth_optical_frame')
-            # br_target.sendTransform(trans_ee_test[0]+np.array([0,0,0.25]),quat_test1,common_time,'target_position_test','world')
+            # br_target.sendTransform(trans_ee_test[0]+np.array([0,0,0.25]),quat_test1,common_time,'target_position','world')
             # br_test.sendTransform([self.x+0.1,self.y,self.z],,common_time,'target_position','camera_depth_optical_frame')
             # br_target.sendTransform([self.x,self.y,self.z],trans_ee_real[1],common_time,'target_position','camera_depth_optical_frame')
             # br_test.sendTransform([self.x,self.y,self.z],trans_ee_real[1],common_time,'test','camera_depth_optical_frame')

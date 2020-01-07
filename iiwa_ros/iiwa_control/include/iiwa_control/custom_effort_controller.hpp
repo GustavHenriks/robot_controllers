@@ -45,10 +45,6 @@
 // RobotControllers
 #include <robot_controllers/AbstractController.hpp>
 
-
-// for nullspace
-#include <iiwa_control/pseudo_inversion.h>
-
 namespace iiwa_control {
     class CustomEffortController : public controller_interface::Controller<hardware_interface::EffortJointInterface> {
     public:
@@ -80,23 +76,18 @@ namespace iiwa_control {
         // Controller's settings
         unsigned int space_dim_;
         unsigned int cmd_dim_;
-        bool has_orientation_;
+        bool has_orientation_, null_space_control_;
         std::string operation_space_, gravity_comp_;
-
-
-        // null-space control variables
-        Eigen::Matrix<double,7,1>  qd_null_, nullspace_torque_;
-        Eigen::MatrixXd jac_t_pinv_;
-
-        //publsih force
-        std_msgs::Float64MultiArray force_vec;
-        ros::Publisher pub_force;
 
         // Iiwa tools
         iiwa_tools::IiwaTools tools_;
 
         // URDF
         std::vector<urdf::JointConstSharedPtr> joint_urdfs_;
+
+        // Null-space control
+        Eigen::VectorXd null_space_joint_config_;
+        double null_space_Kp_, null_space_Kd_, null_space_max_torque_;
 
         // Command callback
         void commandCB(const std_msgs::Float64MultiArrayConstPtr& msg);

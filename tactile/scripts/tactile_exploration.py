@@ -11,7 +11,7 @@ from sensor_msgs.msg import PointCloud
 import time
 from nav_msgs.msg import Path
 
-class grasp_one():
+class tactile_exploration():
     def __init__(self):
 
         freq = 200
@@ -486,4 +486,4 @@ class grasp_one():
         self.path_pub.publish(self.path)
 
 if __name__ == '__main__':
-    grasp_one()
+    tactile_exploration()

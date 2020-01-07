@@ -68,28 +68,14 @@ iiwa:
       space: task
       # end_effector is only needed in task space
       end_effector: iiwa_link_ee
-      null_space:
-        # joints: [0.044752691045324394, 0.6951627023357917, -0.01416978801753847, -1.0922311725109015, -0.0050429618456282, 1.1717338014778385, -0.01502630060305613]        
-        # joints: [0.044752691045324394, 0.051627023357917, -0.01416978801753847, -1.0922311725109015, -0.0050429618456282, 1.1717338014778385, -0.01502630060305613] # Grasping object on table in front of robot
-        # joints: [-2.3504054504660545, 1.9902451572408222, 1.5456298739862606, -1.8402769636099445, -0.3734986276801378, -1.0242989531471474, -2.2332223810792953] # Grasping cheese conveyor belt
-        # joints: [1.449845, 0.88941979, 0.007679449, -1.5802211, 0.1548107, -1.0536553, 1.3133603] # Grasping on conveyor belt
-        # joints: [-1.9552561939692383, 1.1720671426752582, 0.7266715664544445, -0.9748443712768892, -2.7731767753281096, -1.1545671781967044, 1.2810317900813468] # Working nullspace, elbow donw. Conveyor belt
-        joints: [1.42677764173423, -0.9986385105282578, 0.2749019405766815, 0.8896932775102702, 0.6502286659961315, -1.129749825817803, 0.8266227585172456] # New try for nullspace
-        Kp: 20.
-        Kd: 0.1
-        max_torque: 10.
     controllers:
       # LinearDS: {type: "LinearDSController", params: [1., 1., 1.]}
-      # ForceDS: {type: "ForceModDSController", params: [200]}
-      # PassiveDS: {type: "PassiveDSController", params: [100, 33]}
-      PassiveDS: {type: "PassiveDSController", params: [70, 22]}      
-      PassiveDS: {type: "PassiveDSController", params: [60, 22]}
-      # PassiveDS: {type: "PassiveDSController", params: [10, 3]}
-      PD: {type: "PidController", params: [20., 2.], input: "Orientation", output: "Torque"}
+      PassiveDS: {type: "PassiveDSController", params: [100, 33]} #Used for massage
+      # PassiveDS: {type: "PassiveDSController", params: [66, 22]} #90, 30 for Massage
+      # PassiveDS: {type: "PassiveDSController", params: [10, 3]} #Used for gravity compensation
+      PD: {type: "PidController", params: [20., 2.], input: "Orientation", output: "Torque"} #Used for massage
+      # PD: {type: "PidController", params: [5., 5.], input: "Orientation", output: "Torque"}
     # structure:
-      # AddCtrl:
-      #   - LinearDS
-      #   - ForceDS
-      # CascadeCtrl:
-        # - LinearDS
-        # - PassiveDS
+    #   CascadeCtrl:
+    #     - LinearDS
+    #     - PassiveDS

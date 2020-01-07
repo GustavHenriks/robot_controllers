@@ -6,12 +6,12 @@ import math
 import tf
 import tf2_ros
 from geometry_msgs.msg import Pose, PoseStamped, Point32, TransformStamped, TwistStamped
-from std_msgs.msg import Header, Float64MultiArray, Float64, Int8
+from std_msgs.msg import Header, Float64MultiArray, Float64, Int8, String
 from sensor_msgs.msg import PointCloud
 import time
 from nav_msgs.msg import Path
 
-class grasp_one():
+class grasp_conveyor():
     def __init__(self):
 
         freq = 200
@@ -54,7 +54,7 @@ class grasp_one():
                 # common_time = self.listener.getLatestCommonTime(
                 # '/palm_link', '/target') 
                 trans_target_raw = self.listener.lookupTransform(
-                    'mocap_world', 'target_position', rospy.Time(0))
+                    'mocap_world', 'mocap_test_object', rospy.Time(0))
                 if not self.trans_target_logged:
                     rospy.loginfo("target transform received")
                     self.trans_target_logged = True
@@ -63,8 +63,8 @@ class grasp_one():
             if not self.target_read:
                 trans_target=trans_target_raw
                 trans_target_raw_rotated=tf.transformations.quaternion_multiply(trans_target_raw[1],trans_world[1])
-                rospy.loginfo("Target position and orientation locked")                
-                self.target_read=True
+                # rospy.loginfo("Target position and orientation locked")                
+                # self.target_read=True
             # trans_target=trans_target_raw
             # trans_target_raw_rotated=tf.transformations.quaternion_multiply(trans_target_raw[1],trans_world[1])
             # print(tf.transformations.quaternion_matrix(trans_target[1]),np.append(np.array(trans_world[0]),1))
@@ -73,8 +73,8 @@ class grasp_one():
             offset=np.dot(tf.transformations.quaternion_matrix(trans_target[1]),np.array([-0.03,-0.04,0,1]))[:-1] #-0.03,-0.018 worked ok 20191022
             trans_world_rotated=np.dot(tf.transformations.quaternion_matrix(tf.transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_world[0]),1))
             trans_target_rotated=np.dot(tf.transformations.quaternion_matrix(tf.transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_target[0])+offset,1))
-            self.trans_target=trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([0,0,0.19])+self.salad_offset
-            print(self.salad_offset)
+            self.trans_target=trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([0,0,0.14])+self.salad_offset
+            # print(self.salad_offset)
 
             ## Use a fixed orientation 170 degrees
             # transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_world[0]),1))
@@ -91,9 +91,23 @@ class grasp_one():
             # trans_target_rotated=np.dot(tf.transformations.quaternion_matrix(tf.transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_target[0])+np.array([-0.005,-0.02,0.19]),1))
             # trans_target_rotated=np.dot(tf.transformations.quaternion_matrix(tf.transformations.quaternion_inverse(trans_world[1])),np.append(np.array(trans_target[0])+np.array([-0.005,-0.02,0.0]),1))
 
+
+            # try:
+            #     # common_time = self.listener.getLatestCommonTime(
+            #     # '/palm_link', '/target') 
+            #     trans_pick = self.listener.lookupTransform(
+            #         'world', 'mocap_test_object', rospy.Time(0))
+            #     # if not self.:
+            #     #     rospy.loginfo("world transform received")
+            #     #     self.trans_world_logged = True
+            # except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            #     continue      
+            # print(trans_pick)       
+
+
             # self.trans_target=trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([0,0,0.25])
             # self.trans_target=trans_world[0]
-            self.attack_position=self.trans_target+np.array([0,0,0.2])
+            self.attack_position=self.trans_target+np.array([-0.1,0,0.2])
             # self.attack_position=self.trans_target
             if not self.target_position_initialized:
                 self.target_position=self.attack_position
@@ -116,13 +130,17 @@ class grasp_one():
                 raw_input('Waiting to start movement')
                 self.go_to_init_possition2 = True
             if self.go_to_init_possition2:
-                self.custom_command.data[0:3] = [0, np.deg2rad(160), 0]
+                self.desired_orientation_conveyor = [np.deg2rad(116), 0.0, 0]
+                # self.desired_orientation_conveyor = [1.2091996, 1.2091996, 1.2091996]
+                self.custom_command.data[0:3] = self.desired_orientation_conveyor  
                 self.custom_command.data[3:6] = [0, 0, 0.03]
                 t_start = time.time()
                 counter = 0
+                self.allegroMsg.data="home"
                 while counter < 50:
                     self.RobotCommandPub.publish(self.custom_command)
                     self.GrabPub.publish(0)
+                    self.AllegroPub.publish(self.allegroMsg)
                     counter = counter+1
                     rate.sleep()
                 self.go_to_init_possition2 = False
@@ -138,7 +156,8 @@ class grasp_one():
             if desired_velocity_norm>self.max_vel:
                 self.desired_velocity=self.desired_velocity/desired_velocity_norm*self.max_vel
                 
-            self.custom_command.data[0:3] = self.desired_orientation
+            # self.custom_command.data[0:3] = self.desired_orientation
+            self.custom_command.data[0:3] = self.desired_orientation_conveyor
             self.custom_command.data[3:6] = self.desired_velocity
             self.RobotCommandPub.publish(self.custom_command)
             # self.br_ee_target.sendTransform(trans_target_rotated[:-1]-trans_world_rotated[:-1]+np.array([-0.025,0.009,0.0]), [0,0,0,1], rospy.Time.now(
@@ -151,7 +170,7 @@ class grasp_one():
             # rospy.loginfo_throttle(1, "Target: "+str(self.target_position))
 
             if distance_to_target<0.05 and self.attack_reached==False:
-                self.target_position=self.trans_target+np.array([0,0,0.05])
+                self.target_position=self.trans_target+np.array([-0.1,0,0.05])
                 self.robot_gain=6
                 self.attack_reached=True
 
@@ -161,22 +180,52 @@ class grasp_one():
                 self.target_reached_init=True
             
             elif distance_to_target<0.01 and self.target_reached==False and self.target_reached_init==True:
+                self.allegroMsg.data='grasp_3'
+                self.target_position=self.trans_target
                 counter = 0
                 while counter < 50:
                     self.GrabPub.publish(1)
+                    self.AllegroPub.publish(self.allegroMsg)
                     counter = counter+1
                     rate.sleep()
                 rospy.loginfo_throttle(1, ['Target reached'])
-                self.target_reached = True                
-             
-            if self.grasped==1:
+                self.target_reached = True            
+
+            # elif self.target_reached==True and self.grasped==0:
+            #     rospy.loginfo_throttle(1, ['Waiting for grasp'])
+            #     self.target_position=self.trans_target
+
+            if self.target_reached==True and self.pick_up_1==False:
                 self.max_vel=0.3
                 self.target_position=self.trans_target+np.array([0,0,0.3])
                 rospy.loginfo_throttle(1, ['Picked up object'])
+                self.pick_up_1=True
+
+            
+            elif self.pick_up_1==True and distance_to_target<0.05 and self.pick_up_2==False:
+                self.desired_orientation_conveyor =  [0.9592327, 1.5350932, 1.5350932 ]
+                self.target_position=self.drop_position+np.array([0,0,0.3])
+                self.pick_up_2=True
+
+            elif self.pick_up_2==True and self.pick_up_3==False and distance_to_target<0.02:
+                self.target_position=self.drop_position+np.array([0,0,0.1])
+                self.pick_up_3=True
+            
+            elif self.pick_up_3==True and distance_to_target<0.02 and self.pick_up_4==False:
+                self.allegroMsg.data='home'
+                counter = 0
+                while counter < 50:
+                    self.AllegroPub.publish(self.allegroMsg)
+                    counter = counter+1
+                    rate.sleep()
+                self.pick_up_4=False
 
 
-        
+
+            rospy.loginfo_throttle(1, [self.grasped==0])
             rospy.loginfo_throttle(1, ['Dist to target '+str(distance_to_target)])            
+            rospy.loginfo_throttle(1, ['Target pos'+ str(self.target_position)])
+
             rate.sleep()
 
 
@@ -443,8 +492,9 @@ class grasp_one():
         self.GraspedSub = rospy.Subscriber(
             "/grasped", Int8, self.chatterCallback_Grasped)
         self.SaladSub = rospy.Subscriber(
-            "/salad", Int8, self.chatterCallback_Salad
-        )
+            "/salad", Int8, self.chatterCallback_Salad)
+        self.AllegroPub = rospy.Publisher(
+            "/allegroHand_1/lib_cmd", String, queue_size=3)
 
 
     def init_params(self):
@@ -471,8 +521,15 @@ class grasp_one():
         self.max_vel = 0.4
         self.robot_gain = 6
 
-        # Grasped
+        # Grasping
         self.grasped = 0
+        self.allegroMsg = String()
+        self.drop_position = np.array([0.7684915438294411, -0.07006531953811668, 0.26347678899765015])
+        self.pick_up_1=False
+        self.pick_up_2=False
+        self.pick_up_3=False
+        self.pick_up_4=False
+
 
     def publish_path(self):
         pose = PoseStamped()
@@ -486,4 +543,4 @@ class grasp_one():
         self.path_pub.publish(self.path)
 
 if __name__ == '__main__':
-    grasp_one()
+    grasp_conveyor()
